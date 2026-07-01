@@ -248,8 +248,14 @@ async def run(parsed_args):
       device.add_property_change_listener(mqtt_client.mqtt_publish_update)
 
   async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(connect=5.0)) as session:
-    await asyncio.gather(mqtt_loop(mqtt_client), setup_and_run_http_server(parsed_args, devices),
-                         query_status_worker(devices), notifier.start(session))
+    tasks = [
+        setup_and_run_http_server(parsed_args, devices),
+        query_status_worker(devices),
+        notifier.start(session)
+    ]
+    if mqtt_client:
+      tasks.insert(0, mqtt_loop(mqtt_client))
+    await asyncio.gather(*tasks)
 
 
 def _escape_name(name: str):

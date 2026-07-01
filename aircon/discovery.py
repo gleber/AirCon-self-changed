@@ -162,9 +162,13 @@ async def perform_discovery(session: aiohttp.ClientSession,
     if not device_data.get('mac'):
       mac = get_mac_address(ip=device_data['lan_ip'])
       if not mac or mac == '00:00:00:00:00:00':
-        logging.error(f'Failed to fetch MAC address for AC on IP address {device_data["lan_ip"]}.' +
-                      '\nAre you sure it is connected? Skipping...')
-        continue
-      device_data['mac'] = mac.replace(':', '')
+        logging.warning(
+            f'Could not auto-detect MAC for AC on IP {device_data["lan_ip"]} '
+            '(the cloud did not report it and it is not on the local L2 segment, '
+            'e.g. behind a router/VLAN). Proceeding with an empty MAC - set '
+            '"mac_address" manually in the generated config file.')
+        device_data['mac'] = ''
+      else:
+        device_data['mac'] = mac.replace(':', '')
     result.append(device_data)
   return result
