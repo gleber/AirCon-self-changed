@@ -223,12 +223,6 @@ async def run(parsed_args):
         config['fan_mode_state_topic'] = mqtt_topics['pub'].format(device.mac_address,
                                                                    topics['fan_speed'])
         config['fan_modes'] = device.fan_modes
-      if 'verti_sweep' in topics:
-        config['verti_sweep_command_topic'] = mqtt_topics['sub'].format(device.mac_address,
-                                                                     topics['verti_sweep'])
-        config['verti_sweep_state_topic'] = mqtt_topics['pub'].format(device.mac_address,
-                                                                   topics['verti_sweep'])
-        config['verti_sweep'] = device.verti_sweeps
       if 'work_mode' in topics:
         config['mode_command_topic'] = mqtt_topics['sub'].format(device.mac_address,
                                                                  topics['work_mode'])
@@ -254,8 +248,14 @@ async def run(parsed_args):
       device.add_property_change_listener(mqtt_client.mqtt_publish_update)
 
   async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(connect=5.0)) as session:
-    await asyncio.gather(mqtt_loop(mqtt_client), setup_and_run_http_server(parsed_args, devices),
-                         query_status_worker(devices), notifier.start(session))
+    tasks = [
+        setup_and_run_http_server(parsed_args, devices),
+        query_status_worker(devices),
+        notifier.start(session)
+    ]
+    if mqtt_client:
+      tasks.insert(0, mqtt_loop(mqtt_client))
+    await asyncio.gather(*tasks)
 
 
 def _escape_name(name: str):

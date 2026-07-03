@@ -23,6 +23,25 @@ class QueryHandlers:
     for device in devices:
       self._devices_map[device.ip_address] = device
 
+  def _resolve_device(self, request: web.Request) -> Device:
+    """Resolves the device for an AC-originated request.
+
+    Normally the device is identified by the source IP (request.remote).
+    However, when the AC and the server are on different subnets, an
+    intermediate router may source-NAT the traffic, so request.remote is the
+    router's IP rather than the AC's. In that case, if this server instance
+    manages a single device, fall back to it. To control multiple ACs that sit
+    behind the same NAT, run one server instance (port) per AC.
+    """
+    device = self._devices_map.get(request.remote)
+    if device is None and len(self._devices_map) == 1:
+      device = next(iter(self._devices_map.values()))
+    if device is None:
+      raise web.HTTPBadRequest(
+          reason=f'Unknown device for request from {request.remote}. '
+          'Behind NAT with multiple ACs? Run one server instance per AC.')
+    return device
+
   async def key_exchange_handler(self, request: web.Request) -> web.Response:
     """Handles a key exchange.
     Accepts the AC's random and time and pass its own.
@@ -39,7 +58,7 @@ class QueryHandlers:
       if key['ver'] != 1 or key['proto'] != 1 or key.get('sec'):
         logging.error(f'Invalid key exchange: {data}')
         raise web.HTTPBadRequest(reason=f'Invalid key exchange: {data}')
-      updated_keys = self._devices_map[request.remote].update_key(key)
+      updated_keys = self._resolve_device(request).update_key(key)
     except KeyIdReplaced as e:
       logging.error(f'{e.title}\n{e.message}')
       return web.Response(status=HTTPStatus.NOT_FOUND.value, reason=f'{e.title}\n{e.message}')
@@ -51,7 +70,7 @@ class QueryHandlers:
     builds the JSON, encrypts and signs it, and sends it to the AC.
     """
     command = {}
-    device = self._devices_map[request.remote]
+    device = self._resolve_device(request)
     command['seq_no'] = device.get_command_seq_no()
     try:
       command_entry = device.commands_queue.get_nowait()
@@ -66,7 +85,7 @@ class QueryHandlers:
     """Handles a property update request.
     Decrypts, validates, and pushes the value into the local properties store.
     """
-    device = self._devices_map[request.remote]
+    device = self._resolve_device(request)
     post_data = await request.text()
     data = json.loads(post_data)
     try:
@@ -117,7 +136,7 @@ class QueryHandlers:
       device.queue_command(request.query['property'], request.query['value'])
     except Exception as ex:
       logging.exception('Failed to queue command.')
-      raise web.HTTPBadRequest(f'Failed to queue command:\n{ex!r}')
+      raise web.HTTPBadRequest(text=f'Failed to queue command:\n{ex!r}')
     return web.json_response({'queued_commands': device.commands_queue.qsize()})
 
   def _encrypt_and_sign(self, device: Device, data: dict) -> dict:

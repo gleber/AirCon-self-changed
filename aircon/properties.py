@@ -18,15 +18,6 @@ class FanSpeed(enum.IntEnum):
   HIGH = 8
   HIGHER = 9
 
-class VertiSweep(enum.IntEnum):
-  SWEEP = 0
-  AUTO = 1
-  ANGLE1 = 2
-  ANGLE2 = 3
-  ANGLE3 = 4
-  ANGLE4 = 5
-  ANGLE5 = 6
-  ANGLE6 = 7
 
 class SleepMode(enum.IntEnum):
   STOP = 0
@@ -262,15 +253,6 @@ class AcProperties(Properties):
                                         'decoder': lambda x: FanSpeed[x]
                                     }
                                 })  # FanSpeed
-  t_swing_angle: VertiSweep = field(default=VertiSweep.AUTO,
-                                metadata={
-                                    'base_type': 'integer',
-                                    'read_only': False,
-                                    'dataclasses_json': {
-                                        'encoder': lambda x: x.name,
-                                        'decoder': lambda x: VertiSweep[x]
-                                    }
-                                })  # VertiSweep
   t_ftkt_start: int = field(default=None, metadata={'base_type': 'integer', 'read_only': False})
   t_power: Power = field(default=Power.ON,
                          metadata={

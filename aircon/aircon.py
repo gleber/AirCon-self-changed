@@ -14,7 +14,7 @@ from Crypto.Cipher import AES
 from . import control_value
 from .config import Config, Encryption
 from .error import Error
-from .properties import (AcProperties, AirFlow, AirFlowState, Economy, FanSpeed, VertiSweep, FastColdHeat,
+from .properties import (AcProperties, AirFlow, AirFlowState, Economy, FanSpeed, FastColdHeat,
                          FglProperties, FglBProperties, HumidifierProperties, Properties, Power,
                          AcWorkMode, Quiet, TemperatureUnit, SleepMode)
 
@@ -51,8 +51,6 @@ class Device(object):
     self.topics = {}
     self.work_modes = []
     self.fan_modes = []
-    self.verti_sweeps = []
-                                                                                          
 
     self._next_command_id = 0
 
@@ -241,7 +239,6 @@ class AcDevice(Device):
     self.topics = {
         'env_temp': 'f_temp_in',
         'fan_speed': 't_fan_speed',
-        'verti_sweep': 't_swing_angle',
         'work_mode': 't_work_mode',
         'power': 't_power',
         'swing_mode': 't_fan_power',
@@ -249,7 +246,6 @@ class AcDevice(Device):
     }
     self.work_modes = ['off', 'fan_only', 'heat', 'cool', 'dry', 'auto']
     self.fan_modes = ['auto', 'lower', 'low', 'medium', 'high', 'higher']
-    self.verti_sweeps = ['sweep', 'auto', 'angle1', 'angle2', 'angle3', 'angle4', 'angle5', 'angle6']
 
   # @override to add special support for t_power.
   def update_property(self, name: str, value) -> None:
@@ -358,12 +354,6 @@ class AcDevice(Device):
     else:
       return self.get_property('t_fan_speed')
 
-  def set_verti_sweep(self, setting: VertiSweep) -> None:
-    self.queue_command('t_control_value', setting)
-
-  def get_verti_sweep(self) -> VertiSweep:
-    self.get_property('t_swing_angle')
-
   def set_fan_vertical(self, setting: AirFlow) -> None:
     control = self.get_property('t_control_value')
     control = control_value.clear_up_change_flags(control)
@@ -460,7 +450,6 @@ class AcDevice(Device):
     else:
       return self.get_property('t_temptype')
 
-
   def set_swing(self, setting: AirFlowState) -> None:
     control = self.get_property("t_control_value")
     control = control_value.clear_up_change_flags(control)
@@ -497,8 +486,6 @@ class AcDevice(Device):
       return self.set_power(value)
     elif name == 't_fan_speed':
       return self.set_fan_speed(value)
-    elif name == 't_swing_angle':
-      return self.set_verti_sweep(value)
     elif name == 't_work_mode':
       return self.set_work_mode(value)
     elif name == 't_temp_heatcold':
@@ -525,9 +512,6 @@ class AcDevice(Device):
 
     fan_speed = control_value.get_fan_speed(control)
     self.update_property('t_fan_speed', fan_speed)
-
-    verti_sweep = control_value.get_verti_sweep(control)
-    self.update_property('t_swing_angle', verti_sweep)
 
     work_mode = control_value.get_work_mode(control)
     self.update_property('t_work_mode', work_mode)

@@ -1,10 +1,9 @@
 {
-  "name": "HiSense Air Conditioners MOD",
-  "version": "0.1",
-  "slug": "hisense_ac_r",
-  "description": "Interface for controlling Air Conditioners, e.g. with HiSense modules.",
-  "url": "https://github.com/RomanBabakin/AirCon-self-changed",
-  "image": "rmnbb/aircon-mod",
+  "name": "HiSense Air Conditioners (patched)",
+  "version": "0.3.17-patched1",
+  "slug": "hisense_ac",
+  "description": "Interface for controlling Hisense/Ayla Air Conditioners. Self-building fork with NAT-tolerant + MQTT-optional patches.",
+  "url": "https://github.com/gleber/AirCon-self-changed/tree/local-network-fixes",
   "arch": ["armhf", "armv7", "aarch64", "amd64", "i386"],
   "startup": "application",
   "boot": "auto",
@@ -17,12 +16,14 @@
     "OPTIONS_FILE": "/data/options.json"
   },
   "options": {
+    "app": [],
     "log_level": "INFO",
-    "mqtt_host": "core-mosquitto",
+    "mqtt_host": "127.0.0.1",
     "mqtt_port": 1883,
-    "mqtt_user": null,
-    "mqtt_pass": null,
-    "port": null
+    "mqtt_user": "mqtt",
+    "mqtt_pass": "mqtt",
+    "port": 8888,
+    "local_ip": "192.168.1.32"
   },
   "schema": {
     "app": [
