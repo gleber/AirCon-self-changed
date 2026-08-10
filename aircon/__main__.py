@@ -81,6 +81,10 @@ def ParseArguments() -> argparse.Namespace:
   group_mqtt.add_argument('--mqtt_port', type=int, default=1883, help='MQTT broker port.')
   group_mqtt.add_argument('--mqtt_client_id', default=None, help='MQTT client ID.')
   group_mqtt.add_argument('--mqtt_user', default=None, help='<user:password> for the MQTT channel.')
+  group_mqtt.add_argument('--mqtt_user_file',
+                          default=None,
+                          help='File containing <user:password> for the MQTT channel, keeping '
+                          'credentials out of the command line (visible in ps/systemctl status).')
   group_mqtt.add_argument('--mqtt_topic', default='hisense_ac', help='MQTT topic.')
   group_mqtt.add_argument('--mqtt_discovery_prefix',
                           default='homeassistant',
@@ -207,10 +211,25 @@ async def run(parsed_args):
             '/'.join((parsed_args.mqtt_discovery_prefix, 'climate', '{}', 'hvac', 'config'))
     }
     mqtt_client = MqttClient(parsed_args.mqtt_client_id, mqtt_topics, devices)
-    if parsed_args.mqtt_user:
-      mqtt_client.username_pw_set(*parsed_args.mqtt_user.split(':', 1))
+    mqtt_user = parsed_args.mqtt_user
+    if parsed_args.mqtt_user_file:
+      with open(parsed_args.mqtt_user_file) as f:
+        mqtt_user = f.read().strip()
+    if mqtt_user:
+      mqtt_client.username_pw_set(*mqtt_user.split(':', 1))
     mqtt_client.will_set(mqtt_topics['lwt'], payload='offline', retain=True)
-    mqtt_client.connect(parsed_args.mqtt_host, parsed_args.mqtt_port)
+    # Retry the initial connect: the broker may be unreachable at startup
+    # (e.g. the network is still being configured on boot or during a config
+    # switch). Later drops are handled by the reconnect in mqtt_loop().
+    _MQTT_CONNECT_RETRY_INTERVAL = 10
+    while True:
+      try:
+        mqtt_client.connect(parsed_args.mqtt_host, parsed_args.mqtt_port)
+        break
+      except OSError as e:
+        logging.error('Failed to connect to MQTT broker at {}:{} ({}), retrying in {}s.'.format(
+            parsed_args.mqtt_host, parsed_args.mqtt_port, e, _MQTT_CONNECT_RETRY_INTERVAL))
+        await asyncio.sleep(_MQTT_CONNECT_RETRY_INTERVAL)
     # The 'online' LWT is published from the on_connect callback, so that it is
     # also restored after a reconnect.
     for device in devices:
