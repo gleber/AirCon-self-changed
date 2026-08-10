@@ -159,9 +159,29 @@ async def setup_and_run_http_server(parsed_args, devices: [Device]):
 
 async def mqtt_loop(mqtt_client: MqttClient):
   _MQTT_LOOP_TIMEOUT = 1
+  _RECONNECT_MIN_DELAY = 1
+  _RECONNECT_MAX_DELAY = 60
+  reconnect_delay = _RECONNECT_MIN_DELAY
+  loop = asyncio.get_event_loop()
   while True:
-    mqtt_client.loop()
-    await asyncio.sleep(_MQTT_LOOP_TIMEOUT)
+    rc = mqtt_client.loop()
+    if rc == mqtt.MQTT_ERR_SUCCESS:
+      reconnect_delay = _RECONNECT_MIN_DELAY
+      await asyncio.sleep(_MQTT_LOOP_TIMEOUT)
+      continue
+    # Unlike loop_forever(), loop() never reconnects by itself, so without this
+    # the client stays silently disconnected forever (e.g. after a broker
+    # restart) while the process keeps running.
+    logging.warning('Lost connection to the MQTT broker ({}), reconnecting in {}s'.format(
+        mqtt.error_string(rc), reconnect_delay))
+    await asyncio.sleep(reconnect_delay)
+    reconnect_delay = min(2 * reconnect_delay, _RECONNECT_MAX_DELAY)
+    try:
+      # Reconnecting blocks on the TCP connect, so keep it off the event loop.
+      await loop.run_in_executor(None, mqtt_client.reconnect)
+      logging.info('Reconnected to the MQTT broker.')
+    except OSError:
+      logging.exception('Failed to reconnect to the MQTT broker.')
 
 
 async def run(parsed_args):
@@ -191,7 +211,8 @@ async def run(parsed_args):
       mqtt_client.username_pw_set(*parsed_args.mqtt_user.split(':', 1))
     mqtt_client.will_set(mqtt_topics['lwt'], payload='offline', retain=True)
     mqtt_client.connect(parsed_args.mqtt_host, parsed_args.mqtt_port)
-    mqtt_client.publish(mqtt_topics['lwt'], payload='online', retain=True)
+    # The 'online' LWT is published from the on_connect callback, so that it is
+    # also restored after a reconnect.
     for device in devices:
       config = {
           'unique_id': device.mac_address,

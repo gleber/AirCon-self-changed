@@ -18,6 +18,13 @@ class MqttClient(mqtt.Client):
     self.on_message = self.mqtt_on_message
 
   def mqtt_on_connect(self, client: mqtt.Client, userdata, flags, rc):
+    if rc != mqtt.MQTT_ERR_SUCCESS:
+      logging.error('Failed to connect to the MQTT broker: {}'.format(mqtt.connack_string(rc)))
+      return
+    # The broker published the LWT when the previous connection dropped, so the
+    # devices are marked unavailable until it is set back to online.
+    self.publish(self._mqtt_topics['lwt'], payload='online', retain=True)
+
     for device in self._devices:
       client.subscribe([(self._mqtt_topics['sub'].format(device.mac_address, data_field.name), 0)
                         for data_field in fields(device.get_all_properties())])
