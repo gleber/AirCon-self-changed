@@ -111,6 +111,10 @@ class Device(object):
   def get_property_type(self, name: str):
     return self._properties.get_type(name)
 
+  def get_notify_value(self, name: str):
+    """Get the value listeners are notified with for a stored property."""
+    return self.get_property(name)
+
   def update_property(self, name: str, value, notify_value=None) -> None:
     """Update the stored properties, if changed."""
     # Update value precision for value sent from the A/C
@@ -257,6 +261,13 @@ class AcDevice(Device):
       if name == 't_power':
         work_mode = 'off' if value == Power.OFF else self.get_work_mode()
         self._notify_listeners('t_work_mode', work_mode)
+
+  # @override to add special support for t_power.
+  def get_notify_value(self, name: str):
+    # HomeAssistant expects an 'off' work mode when the AC is off.
+    if name == 't_work_mode' and self.get_power() == Power.OFF:
+      return 'off'
+    return super().get_notify_value(name)
 
   # @override to add special support for t_power.
   def queue_command(self, name: str, value) -> None:

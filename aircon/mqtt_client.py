@@ -37,7 +37,7 @@ class MqttClient(mqtt.Client):
         for data_field in fields(device.get_all_properties()):
           self.mqtt_publish_update(device.mac_address,
                                    data_field.name,
-                                   device.get_property(data_field.name),
+                                   device.get_notify_value(data_field.name),
                                    retain=False)
 
   def mqtt_on_message(self, client: mqtt.Client, userdata, message: mqtt.MQTTMessage):
